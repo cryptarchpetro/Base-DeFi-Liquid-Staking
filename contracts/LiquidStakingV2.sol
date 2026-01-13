@@ -1,5 +1,4 @@
 // base-defi-liquid-staking/contracts/LiquidStakingV3.sol
-// Добавляем автоматическое реинвестирование
 
 struct AutoReinvestSettings {
     bool enabled;
