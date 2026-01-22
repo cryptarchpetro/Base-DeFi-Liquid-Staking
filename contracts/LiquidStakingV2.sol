@@ -43,7 +43,7 @@ event AutoReinvestExecuted(
     uint256 timestamp
 );
 
-// Включение автоматического реинвестирования
+
 function enableAutoReinvest(
     address pool,
     uint256 frequency,
