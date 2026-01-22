@@ -73,7 +73,7 @@ function disableAutoReinvest(address pool) external {
     emit AutoReinvestEnabled(msg.sender, pool, false, 0);
 }
 
-// Автоматическое реинвестирование
+
 function autoReinvest(address pool) external {
     require(autoReinvestSettings[pool].enabled, "Auto reinvest not enabled");
     require(block.timestamp >= autoReinvestSettings[pool].lastReinvestTime + autoReinvestSettings[pool].frequency, "Too early for reinvestment");
