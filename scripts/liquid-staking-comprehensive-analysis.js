@@ -8,7 +8,7 @@ async function comprehensiveLiquidStakingAnalysis() {
   const stakingAddress = "0x...";
   const staking = await ethers.getContractAt("LiquidStakingV3", stakingAddress);
   
-  // Комплексный анализ
+
   const comprehensiveReport = {
     timestamp: new Date().toISOString(),
     stakingAddress: stakingAddress,
