@@ -39,7 +39,7 @@ async function comprehensiveLiquidStakingAnalysis() {
       riskLevel: security.riskLevel
     };
     
-    // Анализ масштабируемости
+  
     const scalability = await staking.getScalabilityIndicators();
     comprehensiveReport.scalability = {
       userGrowth: scalability.userGrowth.toString(),
