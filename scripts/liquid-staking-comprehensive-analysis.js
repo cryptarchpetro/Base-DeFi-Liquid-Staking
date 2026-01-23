@@ -21,7 +21,7 @@ async function comprehensiveLiquidStakingAnalysis() {
   };
   
   try {
-    // Анализ производительности
+ 
     const performance = await staking.getPerformanceMetrics();
     comprehensiveReport.performance = {
       responseTime: performance.responseTime.toString(),
