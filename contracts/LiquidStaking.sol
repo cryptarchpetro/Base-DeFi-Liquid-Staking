@@ -739,4 +739,199 @@ function getAutoReinvestInfo(address pool) external view returns (
 ) {
     
 }
+// Добавить структуры:
+struct AutoReinvestConfig {
+    address user;
+    address pool;
+    bool enabled;
+    uint256 frequency;
+    uint256 minReinvestAmount;
+    uint256 rewardThreshold;
+    bool compoundRewards;
+    uint256 lastReinvestTime;
+    uint256 totalReinvested;
+    uint256 totalCompounds;
+    uint256 lastRewardAmount;
+}
+
+struct ReinvestHistory {
+    address user;
+    address pool;
+    uint256 amount;
+    uint256 rewards;
+    uint256 timestamp;
+    string action;
+}
+
+// Добавить маппинги:
+mapping(address => mapping(address => AutoReinvestConfig)) public autoReinvestConfigs;
+mapping(address => ReinvestHistory[]) public reinvestHistory;
+
+// Добавить события:
+event AutoReinvestEnabled(
+    address indexed user,
+    address indexed pool,
+    bool enabled,
+    uint256 frequency,
+    uint256 minAmount
+);
+
+event AutoReinvestExecuted(
+    address indexed user,
+    address indexed pool,
+    uint256 amount,
+    uint256 rewards,
+    uint256 timestamp
+);
+
+event ReinvestSettingsUpdated(
+    address indexed user,
+    address indexed pool,
+    uint256 frequency,
+    uint256 minAmount,
+    bool compound
+);
+
+// Добавить функции:
+function enableAutoReinvest(
+    address pool,
+    uint256 frequency,
+    uint256 minAmount,
+    uint256 rewardThreshold,
+    bool compound
+) external {
+    require(pool != address(0), "Invalid pool");
+    require(frequency >= 3600, "Frequency too short (minimum 1 hour)");
+    require(minAmount > 0, "Minimum amount must be greater than 0");
+    
+    AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+    
+    config.user = msg.sender;
+    config.pool = pool;
+    config.enabled = true;
+    config.frequency = frequency;
+    config.minReinvestAmount = minAmount;
+    config.rewardThreshold = rewardThreshold;
+    config.compoundRewards = compound;
+    config.lastReinvestTime = block.timestamp;
+    config.totalReinvested = 0;
+    config.totalCompounds = 0;
+    config.lastRewardAmount = 0;
+    
+    emit AutoReinvestEnabled(msg.sender, pool, true, frequency, minAmount);
+}
+
+function disableAutoReinvest(address pool) external {
+    require(pool != address(0), "Invalid pool");
+    
+    AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+    config.enabled = false;
+    
+    emit AutoReinvestEnabled(msg.sender, pool, false, 0, 0);
+}
+
+function updateReinvestSettings(
+    address pool,
+    uint256 frequency,
+    uint256 minAmount,
+    uint256 rewardThreshold,
+    bool compound
+) external {
+    require(pool != address(0), "Invalid pool");
+    require(frequency >= 3600, "Frequency too short (minimum 1 hour)");
+    require(minAmount > 0, "Minimum amount must be greater than 0");
+    
+    AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+    config.frequency = frequency;
+    config.minReinvestAmount = minAmount;
+    config.rewardThreshold = rewardThreshold;
+    config.compoundRewards = compound;
+    
+    emit ReinvestSettingsUpdated(msg.sender, pool, frequency, minAmount, compound);
+}
+
+function autoReinvestRewards(address pool) external {
+    require(pool != address(0), "Invalid pool");
+    AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+    
+    require(config.enabled, "Auto reinvest not enabled");
+    require(block.timestamp >= config.lastReinvestTime + config.frequency, "Too early for reinvestment");
+    
+    // Calculate pending rewards
+    uint256 pendingRewards = calculatePendingReward(msg.sender, pool);
+    
+    // Check conditions
+    if (pendingRewards >= config.minReinvestAmount && 
+        (pendingRewards >= config.rewardThreshold || config.rewardThreshold == 0)) {
+        
+        // Execute reinvestment
+        uint256 amountToReinvest = pendingRewards;
+        
+        // If compound is enabled, reinvest all rewards
+        if (config.compoundRewards) {
+            // In real implementation, this would transfer rewards and re-stake
+            
+            config.lastReinvestTime = block.timestamp;
+            config.totalReinvested += amountToReinvest;
+            config.totalCompounds++;
+            config.lastRewardAmount = pendingRewards;
+            
+            // Add to history
+            ReinvestHistory memory history = ReinvestHistory({
+                user: msg.sender,
+                pool: pool,
+                amount: amountToReinvest,
+                rewards: pendingRewards,
+                timestamp: block.timestamp,
+                action: "compounded"
+            });
+            
+            reinvestHistory[msg.sender].push(history);
+            
+            emit AutoReinvestExecuted(msg.sender, pool, amountToReinvest, pendingRewards, block.timestamp);
+        }
+    }
+}
+
+function getAutoReinvestConfig(address user, address pool) external view returns (AutoReinvestConfig memory) {
+    return autoReinvestConfigs[user][pool];
+}
+
+function getReinvestHistory(address user) external view returns (ReinvestHistory[] memory) {
+    return reinvestHistory[user];
+}
+
+function getAvailableReinvestment(address user, address pool) external view returns (uint256) {
+    AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+    
+    if (!config.enabled) return 0;
+    
+    uint256 pendingRewards = calculatePendingReward(user, pool);
+    
+    if (pendingRewards >= config.minReinvestAmount && 
+        (pendingRewards >= config.rewardThreshold || config.rewardThreshold == 0)) {
+        return pendingRewards;
+    }
+    
+    return 0;
+}
+
+function getTotalReinvested(address user, address pool) external view returns (uint256) {
+    return autoReinvestConfigs[user][pool].totalReinvested;
+}
+
+function getReinvestStats(address user) external view returns (
+    uint256 totalReinvested,
+    uint256 totalCompounds,
+    uint256 lastReinvestTime,
+    uint256 lastRewardAmount
+) {
+    AutoReinvestConfig storage config = autoReinvestConfigs[user][address(0)]; // Simplified
+    return (
+        config.totalReinvested,
+        config.totalCompounds,
+        config.lastReinvestTime,
+        config.lastRewardAmount
+    );
+}
 }
