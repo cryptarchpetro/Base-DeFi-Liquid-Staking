@@ -934,4 +934,279 @@ function getReinvestStats(address user) external view returns (
         config.lastRewardAmount
     );
 }
+
+    struct AutoReinvestConfig {
+        address user;
+        address pool;
+        bool enabled;
+        uint256 frequency;
+        uint256 minReinvestAmount;
+        uint256 rewardThreshold;
+        bool compoundRewards;
+        uint256 lastReinvestTime;
+        uint256 totalReinvested;
+        uint256 totalCompounds;
+        uint256 lastRewardAmount;
+        uint256[] rewardHistory;
+        uint256[] reinvestHistory;
+        mapping(address => bool) isVerified;
+        uint256 verificationLevel;
+        uint256 lastVerificationTime;
+        uint256[] stakeHistory;
+    }
+    
+    struct ReinvestHistory {
+        address user;
+        address pool;
+        uint256 amount;
+        uint256 rewards;
+        uint256 timestamp;
+        string action;
+        string strategy;
+        uint256 performance;
+        uint256 riskScore;
+        uint256 fee;
+        uint256 slippage;
+    }
+    
+    // Новые маппинги
+    mapping(address => mapping(address => AutoReinvestConfig)) public autoReinvestConfigs;
+    mapping(address => ReinvestHistory[]) public reinvestHistory;
+    
+    // Новые события
+    event AutoReinvestEnabled(
+        address indexed user,
+        address indexed pool,
+        bool enabled,
+        uint256 frequency,
+        uint256 minAmount
+    );
+    
+    event AutoReinvestExecuted(
+        address indexed user,
+        address indexed pool,
+        uint256 amount,
+        uint256 rewards,
+        uint256 timestamp
+    );
+    
+    event ReinvestSettingsUpdated(
+        address indexed user,
+        address indexed pool,
+        uint256 frequency,
+        uint256 minAmount,
+        bool compound
+    );
+    
+    // Новые функции для автоматического реинвестирования
+    function enableAutoReinvest(
+        address pool,
+        uint256 frequency,
+        uint256 minAmount,
+        uint256 rewardThreshold,
+        bool compound
+    ) external {
+        require(pool != address(0), "Invalid pool");
+        require(frequency >= 3600, "Frequency too short (minimum 1 hour)");
+        require(minAmount > 0, "Minimum amount must be greater than 0");
+        
+        AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+        
+        config.user = msg.sender;
+        config.pool = pool;
+        config.enabled = true;
+        config.frequency = frequency;
+        config.minReinvestAmount = minAmount;
+        config.rewardThreshold = rewardThreshold;
+        config.compoundRewards = compound;
+        config.lastReinvestTime = block.timestamp;
+        config.totalReinvested = 0;
+        config.totalCompounds = 0;
+        config.lastRewardAmount = 0;
+        
+        emit AutoReinvestEnabled(msg.sender, pool, true, frequency, minAmount);
+    }
+    
+    function disableAutoReinvest(address pool) external {
+        require(pool != address(0), "Invalid pool");
+        
+        AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+        config.enabled = false;
+        
+        emit AutoReinvestEnabled(msg.sender, pool, false, 0, 0);
+    }
+    
+    function updateReinvestSettings(
+        address pool,
+        uint256 frequency,
+        uint256 minAmount,
+        uint256 rewardThreshold,
+        bool compound
+    ) external {
+        require(pool != address(0), "Invalid pool");
+        require(frequency >= 3600, "Frequency too short (minimum 1 hour)");
+        require(minAmount > 0, "Minimum amount must be greater than 0");
+        
+        AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+        config.frequency = frequency;
+        config.minReinvestAmount = minAmount;
+        config.rewardThreshold = rewardThreshold;
+        config.compoundRewards = compound;
+        
+        emit ReinvestSettingsUpdated(msg.sender, pool, frequency, minAmount, compound);
+    }
+    
+    function autoReinvestRewards(address pool) external {
+        require(pool != address(0), "Invalid pool");
+        AutoReinvestConfig storage config = autoReinvestConfigs[msg.sender][pool];
+        
+        require(config.enabled, "Auto reinvest not enabled");
+        require(block.timestamp >= config.lastReinvestTime + config.frequency, "Too early for reinvestment");
+        
+        // Calculate pending rewards
+        uint256 pendingRewards = calculatePendingReward(msg.sender, pool);
+        
+        // Check conditions
+        if (pendingRewards >= config.minReinvestAmount && 
+            (pendingRewards >= config.rewardThreshold || config.rewardThreshold == 0)) {
+            
+            // Execute reinvestment
+            uint256 amountToReinvest = pendingRewards;
+            
+            // If compound is enabled, reinvest all rewards
+            if (config.compoundRewards) {
+                // In real implementation, this would transfer rewards and re-stake
+                config.lastReinvestTime = block.timestamp;
+                config.totalReinvested += amountToReinvest;
+                config.totalCompounds++;
+                config.lastRewardAmount = pendingRewards;
+                
+                // Add to history
+                reinvestHistory[msg.sender].push(ReinvestHistory({
+                    user: msg.sender,
+                    pool: pool,
+                    amount: amountToReinvest,
+                    rewards: pendingRewards,
+                    timestamp: block.timestamp,
+                    action: "compounded",
+                    strategy: "automatic",
+                    performance: 0,
+                    riskScore: 0,
+                    fee: 0,
+                    slippage: 0
+                }));
+                
+                emit AutoReinvestExecuted(msg.sender, pool, amountToReinvest, pendingRewards, block.timestamp);
+            }
+        }
+    }
+    
+    function getAutoReinvestConfig(address user, address pool) external view returns (AutoReinvestConfig memory) {
+        return autoReinvestConfigs[user][pool];
+    }
+    
+    function getReinvestHistory(address user) external view returns (ReinvestHistory[] memory) {
+        return reinvestHistory[user];
+    }
+    
+    function getAvailableReinvestment(address user, address pool) external view returns (uint256) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+        
+        if (!config.enabled) return 0;
+        
+        uint256 pendingRewards = calculatePendingReward(user, pool);
+        
+        if (pendingRewards >= config.minReinvestAmount && 
+            (pendingRewards >= config.rewardThreshold || config.rewardThreshold == 0)) {
+            return pendingRewards;
+        }
+        
+        return 0;
+    }
+    
+    function getTotalReinvested(address user, address pool) external view returns (uint256) {
+        return autoReinvestConfigs[user][pool].totalReinvested;
+    }
+    
+    function getReinvestStats(address user) external view returns (
+        uint256 totalReinvested,
+        uint256 totalCompounds,
+        uint256 lastReinvestTime,
+        uint256 lastRewardAmount
+    ) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][address(0)]; // Simplified
+        return (
+            config.totalReinvested,
+            config.totalCompounds,
+            config.lastReinvestTime,
+            config.lastRewardAmount
+        );
+    }
+    
+    function getAutoReinvestStatus(address user, address pool) external view returns (
+        bool enabled,
+        uint256 frequency,
+        uint256 minAmount,
+        uint256 rewardThreshold,
+        bool compound
+    ) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+        return (
+            config.enabled,
+            config.frequency,
+            config.minReinvestAmount,
+            config.rewardThreshold,
+            config.compoundRewards
+        );
+    }
+    
+    function getNextReinvestTime(address user, address pool) external view returns (uint256) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+        if (!config.enabled) return 0;
+        return config.lastReinvestTime + config.frequency;
+    }
+    
+    function getAutoReinvestHistory(address user, uint256 limit) external view returns (ReinvestHistory[] memory) {
+        ReinvestHistory[] storage history = reinvestHistory[user];
+        uint256 actualLimit = limit < history.length ? limit : history.length;
+        ReinvestHistory[] memory result = new ReinvestHistory[](actualLimit);
+        
+        for (uint256 i = 0; i < actualLimit; i++) {
+            result[i] = history[history.length - 1 - i];
+        }
+        
+        return result;
+    }
+    
+    function calculateAutoReinvestRewards(address user, address pool) external view returns (uint256) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+        if (!config.enabled) return 0;
+        
+        uint256 pendingRewards = calculatePendingReward(user, pool);
+        if (pendingRewards >= config.minReinvestAmount) {
+            return pendingRewards;
+        }
+        return 0;
+    }
+    
+    function getReinvestPerformance(address user, address pool) external view returns (uint256) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+        if (config.totalReinvested == 0) return 0;
+        
+        return (config.totalCompounds * 10000) / config.totalReinvested;
+    }
+    
+    function getReinvestEfficiency(address user, address pool) external view returns (uint256) {
+        AutoReinvestConfig storage config = autoReinvestConfigs[user][pool];
+        if (config.totalReinvested == 0) return 0;
+        
+        return (config.totalCompounds * 10000) / config.totalReinvested;
+    }
+    
+    // Вспомогательная функция для расчета наград (реализация в основном контракте)
+    function calculatePendingReward(address user, address pool) internal view returns (uint256) {
+        // Простая реализация - в реальной системе будет сложнее
+        return 1000000000000000000; // 1 ETH
+    }
+}
 }
