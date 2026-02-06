@@ -800,7 +800,7 @@ event ReinvestSettingsUpdated(
     bool compound
 );
 
-// Добавить функции:
+
 function enableAutoReinvest(
     address pool,
     uint256 frequency,
