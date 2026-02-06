@@ -747,7 +747,7 @@ function getAutoReinvestInfo(address pool) external view returns (
 ) {
     
 }
-// Добавить структуры:
+
 struct AutoReinvestConfig {
     address user;
     address pool;
