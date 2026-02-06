@@ -470,9 +470,17 @@ contract LiquidStakingV2 is Ownable, ReentrancyGuard {
         Pool storage poolInfo = pools[pool];
         Staker storage staker = stakers[user];
         
-        uint256 rewardPerToken = poolInfo.accRewardPerShare;
-        uint256 userReward = staker.rewardDebt;
-        
+        uint256 rewardPerToken = pool.rewardPerTokenStored;
+        uint256 userReward = userInfo[pool][user].rewardDebt;
+
+        if (userInfo[pool][user].amount > 0) {
+        uint256 userEarned = userInfo[pool][user].amount.mul(rewardPerToken.sub(userReward)).div(1e18);
+        // Защита от переполнения
+        require(userEarned <= type(uint256).max, "Reward calculation overflow");
+        return userEarned;
+        }
+        return 0;
+
         if (staker.amountStaked > 0) {
             uint256 userEarned = staker.amountStaked.mul(rewardPerToken.sub(userReward)).div(REWARD_PRECISION);
             return userEarned;
