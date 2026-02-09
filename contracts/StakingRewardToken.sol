@@ -1,23 +1,17 @@
-// base-defi-liquid-staking/contracts/StakingRewardToken.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract StakingRewardToken is ERC20 {
-    constructor() ERC20("Staking Reward Token", "STR") {
-        _mint(msg.sender, 10000000 * 10**18); // 10 million tokens
-    }
+contract StakedToken is ERC20, Ownable {
+    constructor() ERC20("Base Staked Token", "stTOKEN") Ownable(msg.sender) {}
 
     function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
-    
-    function burn(address from, uint256 amount) external {
+
+    function burn(address from, uint256 amount) external onlyOwner {
         _burn(from, amount);
-    }
-    
-    function getStakingRewardInfo() external view returns (uint256 totalSupply, uint256 ownerBalance) {
-        return (totalSupply(), balanceOf(owner()));
     }
 }
