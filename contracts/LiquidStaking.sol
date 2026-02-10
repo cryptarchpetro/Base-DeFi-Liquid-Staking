@@ -23,7 +23,7 @@ contract LiquidStaking is Ownable, ReentrancyGuard {
         uint256 amount;
         uint256 readyAt;
     }
-
+ 
     mapping(address => RedeemRequest) public redeems;
 
     event Deposited(address indexed user, uint256 amount);
