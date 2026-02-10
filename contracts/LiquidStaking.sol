@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20; 
-
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "./StakedToken.sol"; 
+interface IStakedToken is IERC20 {
+    function mint(address to, uint256 amount) external;
+    function burn(address from, uint256 amount) external;
+}
 
-contract BaseLiquidStaking is Ownable, ReentrancyGuard {
+contract LiquidStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable underlying;
-    StakedToken public immutable stToken;
+    IStakedToken public immutable stToken;
 
     uint256 public cooldown = 2 days;
 
@@ -26,18 +28,13 @@ contract BaseLiquidStaking is Ownable, ReentrancyGuard {
 
     event Deposited(address indexed user, uint256 amount);
     event RedeemRequested(address indexed user, uint256 amount, uint256 readyAt);
+    event RedeemCancelled(address indexed user, uint256 amount);
     event Redeemed(address indexed user, uint256 amount);
-    event CooldownSet(uint256 cooldown);
 
     constructor(address _underlying, address _stToken) Ownable(msg.sender) {
         require(_underlying != address(0) && _stToken != address(0), "zero");
         underlying = IERC20(_underlying);
-        stToken = StakedToken(_stToken);
-    }
-
-    function setCooldown(uint256 _cooldown) external onlyOwner {
-        cooldown = _cooldown;
-        emit CooldownSet(_cooldown);
+        stToken = IStakedToken(_stToken);
     }
 
     function deposit(uint256 amount) external nonReentrant {
@@ -50,15 +47,26 @@ contract BaseLiquidStaking is Ownable, ReentrancyGuard {
     function requestRedeem(uint256 amount) external nonReentrant {
         require(amount > 0, "amount=0");
         RedeemRequest storage r = redeems[msg.sender];
-        require(r.amount == 0, "pending redeem");
+        require(r.amount == 0, "pending");
 
-        // lock stTOKEN by transferring to contract, then burn on final redeem
         IERC20(address(stToken)).safeTransferFrom(msg.sender, address(this), amount);
 
         r.amount = amount;
         r.readyAt = block.timestamp + cooldown;
 
         emit RedeemRequested(msg.sender, amount, r.readyAt);
+    }
+
+    function cancelRedeem() external nonReentrant {
+        RedeemRequest storage r = redeems[msg.sender];
+        require(r.amount > 0, "no request");
+
+        uint256 amount = r.amount;
+        r.amount = 0;
+        r.readyAt = 0;
+
+        IERC20(address(stToken)).safeTransfer(msg.sender, amount);
+        emit RedeemCancelled(msg.sender, amount);
     }
 
     function redeem() external nonReentrant {
