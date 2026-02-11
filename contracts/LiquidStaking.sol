@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-
-
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IStakedToken is IERC20 {
@@ -22,7 +23,7 @@ contract LiquidStaking is Ownable, ReentrancyGuard {
         uint256 amount;
         uint256 readyAt;
     }
- 
+
     mapping(address => RedeemRequest) public redeems;
 
     event Deposited(address indexed user, uint256 amount);
@@ -34,6 +35,10 @@ contract LiquidStaking is Ownable, ReentrancyGuard {
         require(_underlying != address(0) && _stToken != address(0), "zero");
         underlying = IERC20(_underlying);
         stToken = IStakedToken(_stToken);
+    }
+
+    function setCooldown(uint256 _cooldown) external onlyOwner {
+        cooldown = _cooldown;
     }
 
     function deposit(uint256 amount) external nonReentrant {
@@ -56,6 +61,7 @@ contract LiquidStaking is Ownable, ReentrancyGuard {
         emit RedeemRequested(msg.sender, amount, r.readyAt);
     }
 
+    // Improvement: cancel redeem request and return stToken
     function cancelRedeem() external nonReentrant {
         RedeemRequest storage r = redeems[msg.sender];
         require(r.amount > 0, "no request");
