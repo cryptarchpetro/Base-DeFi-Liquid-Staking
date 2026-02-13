@@ -17,7 +17,7 @@ async function main() {
   const stakingToken = await StakingToken.deploy("Staking Token", "STAKE");
   await stakingToken.deployed();
 
-  // Деплой Liquid Staking контракта
+
   const LiquidStaking = await ethers.getContractFactory("LiquidStakingV3");
   const staking = await LiquidStaking.deploy(
     rewardToken.address,
