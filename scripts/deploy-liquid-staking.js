@@ -1,52 +1,54 @@
-
-const { ethers } = require("hardhat");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
 
 async function main() {
-  console.log("Deploying Base DeFi Liquid Staking...");
-  
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying contracts with the account:", deployer.address);
-  console.log("Account balance:", (await deployer.getBalance()).toString());
+  console.log("Deployer:", deployer.address);
 
+  // UNDERLYING and ST_TOKEN can be provided, otherwise deploy helpers via StakingManager if possible
+  let underlying = process.env.UNDERLYING || "";
+  let stToken = process.env.ST_TOKEN || "";
 
-  const RewardToken = await ethers.getContractFactory("ERC20Token");
-  const rewardToken = await RewardToken.deploy("Reward Token", "REWARD");
-  await rewardToken.deployed();
-  
-  const StakingToken = await ethers.getContractFactory("ERC20Token");
-  const stakingToken = await StakingToken.deploy("Staking Token", "STAKE");
-  await stakingToken.deployed();
+  if (!underlying) {
+    const T = await ethers.getContractFactory("StakingManager");
+    const t = await T.deploy("Underlying", "UND", 18);
+    await t.deployed();
+    underlying = t.address;
+    console.log("Underlying (StakingManager):", underlying);
+  }
 
+  if (!stToken) {
+    const T = await ethers.getContractFactory("StakingManager");
+    const t = await T.deploy("StakedToken", "stUND", 18);
+    await t.deployed();
+    stToken = t.address;
+    console.log("StakedToken (StakingManager):", stToken);
+  }
 
-  const LiquidStaking = await ethers.getContractFactory("LiquidStakingV3");
-  const staking = await LiquidStaking.deploy(
-    rewardToken.address,
-    stakingToken.address,// 100 tokens per second
-    ethers.utils.parseEther("1000"), // 1000 minimum stake
-    ethers.utils.parseEther("100000") // 100000 maximum stake
-  );
+  const LS = await ethers.getContractFactory("LiquidStaking");
+  const ls = await LS.deploy(underlying, stToken);
+  await ls.deployed();
 
-  await staking.deployed();
+  console.log("LiquidStaking:", ls.address);
 
-  console.log("Base DeFi Liquid Staking deployed to:", staking.address);
-  console.log("Reward Token deployed to:", rewardToken.address);
-  console.log("Staking Token deployed to:", stakingToken.address);
-  
-  // Сохраняем адреса
-  const fs = require("fs");
-  const data = {
-    staking: staking.address,
-    rewardToken: rewardToken.address,
-    stakingToken: stakingToken.address,
-    owner: deployer.address
+  const out = {
+    network: hre.network.name,
+    chainId: (await ethers.provider.getNetwork()).chainId,
+    deployer: deployer.address,
+    contracts: {
+      Underlying: underlying,
+      StToken: stToken,
+      LiquidStaking: ls.address
+    }
   };
-  
-  fs.writeFileSync("./config/deployment.json", JSON.stringify(data, null, 2));
+
+  const outPath = path.join(__dirname, "..", "deployments.json");
+  fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
+  console.log("Saved:", outPath);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch(error => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
