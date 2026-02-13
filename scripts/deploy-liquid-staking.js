@@ -21,8 +21,7 @@ async function main() {
   const LiquidStaking = await ethers.getContractFactory("LiquidStakingV3");
   const staking = await LiquidStaking.deploy(
     rewardToken.address,
-    stakingToken.address,
-    ethers.utils.parseEther("100"), // 100 tokens per second
+    stakingToken.address,// 100 tokens per second
     ethers.utils.parseEther("1000"), // 1000 minimum stake
     ethers.utils.parseEther("100000") // 100000 maximum stake
   );
