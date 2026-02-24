@@ -88,4 +88,9 @@ contract LiquidStaking is Ownable, ReentrancyGuard {
 
         emit Redeemed(msg.sender, amount);
     }
+    uint256 public withdrawalDelay = 1 days;
+
+function setWithdrawalDelay(uint256 newDelay) external onlyOwner {
+    withdrawalDelay = newDelay;
+}
 }
