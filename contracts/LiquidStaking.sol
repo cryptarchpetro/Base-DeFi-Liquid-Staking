@@ -92,5 +92,5 @@ contract LiquidStaking is Ownable, ReentrancyGuard {
 
 function setWithdrawalDelay(uint256 newDelay) external onlyOwner {
     withdrawalDelay = newDelay;
-    }
+     }
 }
